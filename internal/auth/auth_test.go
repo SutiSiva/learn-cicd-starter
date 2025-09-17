@@ -1,23 +1,30 @@
 package auth
 
 import (
-        "errors"
-        "net/http"
-        "strings"
+	"net/http"
+	"testing"
 )
 
-var ErrNoAuthHeaderIncluded = errors.New("no authorization header $
+func TestGetAPIKey(t *testing.T) {
+	headers := http.Header{}
+	headers.Set("Authorization", "ApiKey 12345")
 
-// GetAPIKey -
-func GetAPIKey(headers http.Header) (string, error) {
-        authHeader := headers.Get("Authorization")
-        if authHeader == "" {
-                return "", ErrNoAuthHeaderIncluded
-        }
-        splitAuth := strings.Split(authHeader, " ")
-        if len(splitAuth) < 2 || splitAuth[0] != "ApiKey" {
-                return "", errors.New("malformed authorization hea$
-        }
-
-        return splitAuth[1], nil
+	key, err := GetAPIKey(headers)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if key != "12345" {
+		t.Errorf("Expected key '12345', got '%s'", key)
+	}
 }
+
+func TestGetAPIKeyNoHeader(t *testing.T) {
+	headers := http.Header{}
+
+	_, err := GetAPIKey(headers)
+	if err != ErrNoAuthHeaderIncluded {
+		t.Errorf("Expected ErrNoAuthHeaderIncluded, got %v", err)
+	}
+}
+
+
