@@ -1,4 +1,4 @@
-[![CI Tests](https://github.com/SutiSiva/learn-cicd-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/SutiSiva/learn-$
+[![CI](https://github.com/SutiSiva/learn-cicd-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/SutiSiva/learn-cicd-starter/actions/workflows/ci.yml)
 
 
 # learn-cicd-starter (Notely)
