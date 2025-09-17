@@ -1,6 +1,4 @@
 [![CI Tests](https://github.com/SutiSiva/learn-cicd-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/SutiSiva/learn-$
-[![Coverage](https://img.shields.io/badge/coverage-unknown-lightgrey.svg)](#)
-[![Build Status](https://github.com/SutiSiva/learn-cicd-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/SutiSiva/le$
 
 
 # learn-cicd-starter (Notely)
