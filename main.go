@@ -96,3 +96,7 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
+func unused() {
+	// tut nix, wird nirgendwo aufgerufen
+}
