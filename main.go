@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
@@ -90,8 +91,17 @@ func main() {
 	}
 	router.Handle("/*", http.FileServer(http.FS(subFS)))
 
+	// HTTP Server mit Timeouts (fix für gosec G114)
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      router,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
 	log.Printf("Serving on port %s\n", port)
-	err = http.ListenAndServe(":"+port, router)
+	err = srv.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
 	}
