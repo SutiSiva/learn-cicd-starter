@@ -1,38 +1,22 @@
-name: Continuous Deployment
-
 on:
   push:
-    branches: [main]
+    branches: [main]   # runs when code lands on main (merge or direct push)
 
 jobs:
   Deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Check out code
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.21
+          go-version: "1.25.1"  # same version as your CI
 
-      - name: Build Production
-        run: |
-          chmod +x scripts/buildprod.sh
-          ./scripts/buildprod.sh
+      - name: Make build script executable
+        run: chmod +x scripts/buildprod.sh
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-
-      - name: Build Docker Image
-        run: |
-          docker build -t ${{ secrets.IMAGE_NAME }}:latest .
-
-      - name: Push Docker Image
-        run: |
-          docker push ${{ secrets.IMAGE_NAME }}:latest
-
+      - name: Build production binary
+        run: ./scripts/buildprod.sh
