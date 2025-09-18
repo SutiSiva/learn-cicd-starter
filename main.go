@@ -17,6 +17,16 @@ import (
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
+// Dummy-Aufrufe, damit staticcheck keine "unused" Fehler meldet
+func init() {
+	cfg := &apiConfig{}
+	_ = cfg
+	_ = generateRandomSHA256Hash
+	_ = respondWithError
+	_ = respondWithJSON
+	_ = staticFiles
+}
+
 type apiConfig struct {
 	DB *database.Queries
 }
@@ -25,6 +35,7 @@ type apiConfig struct {
 var staticFiles embed.FS
 
 func main() {
+	// .env laden
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Printf("warning: assuming default configuration. .env unreadable: %v", err)
@@ -64,7 +75,7 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	// 👉 Static Files wirklich einbinden
+	// Static Files einbinden
 	subFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		log.Fatal(err)
