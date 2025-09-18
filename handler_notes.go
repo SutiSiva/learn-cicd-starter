@@ -9,60 +9,74 @@ import (
 	"github.com/google/uuid"
 )
 
-// handlerNotesGet gibt alle Notizen eines Users zurück
+// Helper-Funktionen für HTTP-Antworten
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	if payload != nil {
+		_ = json.NewEncoder(w).Encode(payload)
+	}
+}
+
+func respondWithError(w http.ResponseWriter, code int, message string) {
+	respondWithJSON(w, code, map[string]string{"error": message})
+}
+
+// GET /notes
 func (cfg *apiConfig) handlerNotesGet(w http.ResponseWriter, r *http.Request, user database.User) {
 	posts, err := cfg.DB.GetNotesForUser(r.Context(), user.ID)
 	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, "Couldn't get posts for user", err)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't get posts for user: "+err.Error())
 		return
 	}
 
 	postsResp, err := databasePostsToPosts(posts)
 	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, "Couldn't convert posts", err)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't convert posts: "+err.Error())
 		return
 	}
 
-	RespondWithJSON(w, http.StatusOK, postsResp)
+	respondWithJSON(w, http.StatusOK, postsResp)
 }
 
-// handlerNotesCreate erstellt eine neue Notiz für einen User
+// POST /notes
 func (cfg *apiConfig) handlerNotesCreate(w http.ResponseWriter, r *http.Request, user database.User) {
 	type parameters struct {
 		Note string `json:"note"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
+	var params parameters
 	if err := decoder.Decode(&params); err != nil {
-		RespondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		respondWithError(w, http.StatusBadRequest, "Couldn't decode parameters: "+err.Error())
 		return
 	}
 
-	id := uuid.New().String()
-	err := cfg.DB.CreateNote(r.Context(), database.CreateNoteParams{
+	id := uuid.NewString()
+	noteData := database.CreateNoteParams{
 		ID:        id,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 		Note:      params.Note,
 		UserID:    user.ID,
-	})
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, "Couldn't create note", err)
+	}
+
+	if err := cfg.DB.CreateNote(r.Context(), noteData); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create note: "+err.Error())
 		return
 	}
 
 	note, err := cfg.DB.GetNote(r.Context(), id)
 	if err != nil {
-		RespondWithError(w, http.StatusNotFound, "Couldn't get note", err)
+		respondWithError(w, http.StatusNotFound, "Couldn't get note: "+err.Error())
 		return
 	}
 
 	noteResp, err := databaseNoteToNote(note)
 	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, "Couldn't convert note", err)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't convert note: "+err.Error())
 		return
 	}
 
-	RespondWithJSON(w, http.StatusCreated, noteResp)
+	respondWithJSON(w, http.StatusCreated, noteResp)
 }
