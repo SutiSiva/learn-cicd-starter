@@ -97,6 +97,3 @@ func main() {
 	}
 }
 
-func unused() {
-	// tut nix, wird nirgendwo aufgerufen
-}
