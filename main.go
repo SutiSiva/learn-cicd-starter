@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 	"embed"
-	"io/fs"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -14,27 +14,8 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/bootdotdev/learn-cicd-starter/internal/database"
-
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
-
-// init() Dummy-Aufrufe, damit staticcheck keine "unused"-Fehler meldet
-func init() {
-	cfg := &apiConfig{}
-	_ = cfg.handlerNotesGet
-	_ = cfg.handlerNotesCreate
-	_ = cfg.handlerUsersCreate
-	_ = cfg.handlerUsersGet
-	_ = generateRandomSHA256Hash
-	_ = respondWithError
-	_ = respondWithJSON
-	_ = staticFiles
-
-	// Dummy für noch ungenutzte Funktionen/Typs
-	_ = handlerReadiness
-	var _ authedHandler
-	_ = cfg.middlewareAuth
-}
 
 type apiConfig struct {
 	DB *database.Queries
@@ -44,10 +25,8 @@ type apiConfig struct {
 var staticFiles embed.FS
 
 func main() {
-	// .env laden
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Printf("warning: assuming default configuration. .env unreadable: %v", err)
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("Warning: .env not found, using defaults. %v", err)
 	}
 
 	port := os.Getenv("PORT")
@@ -57,24 +36,20 @@ func main() {
 
 	apiCfg := apiConfig{}
 
-	// Datenbank verbinden, wenn URL vorhanden
 	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		log.Println("DATABASE_URL environment variable is not set")
-		log.Println("Running without CRUD endpoints")
-	} else {
+	if dbURL != "" {
 		db, err := sql.Open("libsql", dbURL)
 		if err != nil {
 			log.Fatal(err)
 		}
-		dbQueries := database.New(db)
-		apiCfg.DB = dbQueries
+		apiCfg.DB = database.New(db)
 		log.Println("Connected to database!")
+	} else {
+		log.Println("DATABASE_URL not set. Running without CRUD endpoints.")
 	}
 
 	router := chi.NewRouter()
 
-	// CORS aktivieren
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"https://*", "http://*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -84,25 +59,42 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	// Static Files einbinden
-	subFS, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		log.Fatal(err)
-	}
-	router.Handle("/*", http.FileServer(http.FS(subFS)))
+	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		f, err := staticFiles.Open("static/index.html")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer f.Close()
+		if _, err := io.Copy(w, f); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
 
-	// HTTP Server mit Timeouts (fix für gosec G114)
+	v1Router := chi.NewRouter()
+
+	if apiCfg.DB != nil {
+		v1Router.Post("/users", apiCfg.handlerUsersCreate)
+		v1Router.Get("/users", apiCfg.middlewareAuth(apiCfg.handlerUsersGet))
+		v1Router.Get("/notes", apiCfg.middlewareAuth(apiCfg.handlerNotesGet))
+		v1Router.Post("/notes", apiCfg.middlewareAuth(apiCfg.handlerNotesCreate))
+	}
+
+	v1Router.Get("/healthz", handlerReadiness)
+
+	router.Mount("/v1", v1Router)
+
 	srv := &http.Server{
-		Addr:         ":" + port,
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              ":" + port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Printf("Serving on port %s\n", port)
-	err = srv.ListenAndServe()
-	if err != nil {
+	log.Printf("Serving on port: %s\n", port)
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }

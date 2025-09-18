@@ -12,21 +12,22 @@ import (
 	"github.com/google/uuid"
 )
 
+// handlerUsersCreate erstellt einen neuen User mit API-Key
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Name string `json:"name"`
 	}
+
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+	if err := decoder.Decode(&params); err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
 
 	apiKey, err := generateRandomSHA256Hash()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't gen apikey", err)
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't generate API key", err)
 		return
 	}
 
@@ -38,42 +39,41 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 		ApiKey:    apiKey,
 	})
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't create user", err)
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't create user", err)
 		return
 	}
 
 	user, err := cfg.DB.GetUser(r.Context(), apiKey)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't get user", err)
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't get user", err)
 		return
 	}
 
 	userResp, err := databaseUserToUser(user)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't convert user", err)
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't convert user", err)
 		return
 	}
-	respondWithJSON(w, http.StatusCreated, userResp)
+
+	RespondWithJSON(w, http.StatusCreated, userResp)
 }
 
+// handlerUsersGet gibt die Informationen eines Users zurück
+func (cfg *apiConfig) handlerUsersGet(w http.ResponseWriter, r *http.Request, user database.User) {
+	userResp, err := databaseUserToUser(user)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't convert user", err)
+		return
+	}
+	RespondWithJSON(w, http.StatusOK, userResp)
+}
+
+// generateRandomSHA256Hash erzeugt einen zufälligen SHA256-Hash als String
 func generateRandomSHA256Hash() (string, error) {
 	randomBytes := make([]byte, 32)
-	_, err := rand.Read(randomBytes)
-	if err != nil {
+	if _, err := rand.Read(randomBytes); err != nil {
 		return "", err
 	}
 	hash := sha256.Sum256(randomBytes)
-	hashString := hex.EncodeToString(hash[:])
-	return hashString, nil
-}
-
-func (cfg *apiConfig) handlerUsersGet(w http.ResponseWriter, r *http.Request, user database.User) {
-
-	userResp, err := databaseUserToUser(user)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't convert user", err)
-		return
-	}
-
-	respondWithJSON(w, http.StatusOK, userResp)
+	return hex.EncodeToString(hash[:]), nil
 }
