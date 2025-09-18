@@ -20,7 +20,10 @@ import (
 // Dummy-Aufrufe, damit staticcheck keine "unused" Fehler meldet
 func init() {
 	cfg := &apiConfig{}
-	_ = cfg
+	_ = cfg.handlerNotesGet
+	_ = cfg.handlerNotesCreate
+	_ = cfg.handlerUsersCreate
+	_ = cfg.handlerUsersGet
 	_ = generateRandomSHA256Hash
 	_ = respondWithError
 	_ = respondWithJSON
