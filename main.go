@@ -63,6 +63,3 @@ func main() {
 	}))
 }
 
-	// unused ist eine absichtlich ungenutzte Funktion zum Testen von Staticcheck
-
-}
