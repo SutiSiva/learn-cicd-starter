@@ -17,7 +17,7 @@ import (
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
-// Dummy-Aufrufe, damit staticcheck keine "unused" Fehler meldet
+// init() Dummy-Aufrufe, damit staticcheck keine "unused"-Fehler meldet
 func init() {
 	cfg := &apiConfig{}
 	_ = cfg.handlerNotesGet
@@ -28,6 +28,11 @@ func init() {
 	_ = respondWithError
 	_ = respondWithJSON
 	_ = staticFiles
+
+	// Dummy für noch ungenutzte Funktionen/Typs
+	_ = handlerReadiness
+	var _ authedHandler
+	_ = cfg.middlewareAuth
 }
 
 type apiConfig struct {
