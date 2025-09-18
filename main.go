@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"embed"
+	"io/fs"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/go-chi/chi"
@@ -35,8 +37,7 @@ func main() {
 
 	apiCfg := apiConfig{}
 
-	// https://github.com/libsql/libsql-client-go/#open-a-connection-to-sqld
-	// libsql://[your-database].turso.io?authToken=[your-auth-token]
+	// Datenbank verbinden, wenn URL vorhanden
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Println("DATABASE_URL environment variable is not set")
@@ -53,6 +54,7 @@ func main() {
 
 	router := chi.NewRouter()
 
+	// CORS aktivieren
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"https://*", "http://*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -61,5 +63,17 @@ func main() {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
-}
 
+	// 👉 Static Files wirklich einbinden
+	subFS, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		log.Fatal(err)
+	}
+	router.Handle("/*", http.FileServer(http.FS(subFS)))
+
+	log.Printf("Serving on port %s\n", port)
+	err = http.ListenAndServe(":"+port, router)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
