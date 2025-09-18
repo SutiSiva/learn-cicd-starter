@@ -3,10 +3,11 @@ package main
 import (
 	"database/sql"
 	"embed"
-	"io/fs"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
@@ -17,24 +18,6 @@ import (
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
-// init() Dummy-Aufrufe, damit staticcheck keine "unused"-Fehler meldet
-func init() {
-	cfg := &apiConfig{}
-	_ = cfg.handlerNotesGet
-	_ = cfg.handlerNotesCreate
-	_ = cfg.handlerUsersCreate
-	_ = cfg.handlerUsersGet
-	_ = generateRandomSHA256Hash
-	_ = respondWithError
-	_ = respondWithJSON
-	_ = staticFiles
-
-	// Dummy für noch ungenutzte Funktionen/Typs
-	_ = handlerReadiness
-	var _ authedHandler
-	_ = cfg.middlewareAuth
-}
-
 type apiConfig struct {
 	DB *database.Queries
 }
@@ -43,9 +26,8 @@ type apiConfig struct {
 var staticFiles embed.FS
 
 func main() {
-	// .env laden
-	err := godotenv.Load(".env")
-	if err != nil {
+	// .env ist optional – bei Fehler nur warnen und weitermachen
+	if err := godotenv.Load(".env"); err != nil {
 		log.Printf("warning: assuming default configuration. .env unreadable: %v", err)
 	}
 
@@ -56,7 +38,7 @@ func main() {
 
 	apiCfg := apiConfig{}
 
-	// Datenbank verbinden, wenn URL vorhanden
+	// Optional: DB verbinden, wenn DATABASE_URL gesetzt ist
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Println("DATABASE_URL environment variable is not set")
@@ -66,14 +48,12 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		dbQueries := database.New(db)
-		apiCfg.DB = dbQueries
+		apiCfg.DB = database.New(db)
 		log.Println("Connected to database!")
 	}
 
+	// Router + CORS
 	router := chi.NewRouter()
-
-	// CORS aktivieren
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"https://*", "http://*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -83,16 +63,52 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	// Static Files einbinden
-	subFS, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		log.Fatal(err)
-	}
-	router.Handle("/*", http.FileServer(http.FS(subFS)))
+	// Root: index.html aus embed FS ausliefern
+	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		f, err := staticFiles.Open("static/index.html")
+		if err != nil {
+			http.Error(w, "index.html not found", http.StatusInternalServerError)
+			return
+		}
+		defer f.Close()
 
-	log.Printf("Serving on port %s\n", port)
-	err = http.ListenAndServe(":"+port, router)
-	if err != nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if _, err := io.Copy(w, f); err != nil {
+			log.Printf("write response failed: %v", err)
+		}
+	})
+
+	// --- v1 API Routen ---
+	v1 := chi.NewRouter()
+
+	// Readiness (freie Funktion: (w, r))
+	v1.Get("/ready", handlerReadiness)
+
+	// Users:
+	v1.Post("/users", apiCfg.handlerUsersCreate)
+	v1.Get("/users", apiCfg.middlewareAuth(apiCfg.handlerUsersGet))
+
+	// Notes:
+	v1.Group(func(r chi.Router) {
+		r.Get("/notes", apiCfg.middlewareAuth(apiCfg.handlerNotesGet))
+		r.Post("/notes", apiCfg.middlewareAuth(apiCfg.handlerNotesCreate))
+	})
+
+	// Unterpfad mounten
+	router.Mount("/v1", v1)
+
+	// HTTP-Server mit Timeouts
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	log.Printf("listening on :%s", port)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }
