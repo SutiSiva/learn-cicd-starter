@@ -1,22 +1,31 @@
+name: CD
+
 on:
   push:
-    branches: [main]   # runs when code lands on main (merge or direct push)
+    branches: [main]
 
 jobs:
   Deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v4
         with:
-          go-version: "1.25.1"  # same version as your CI
+          go-version: '1.20'
 
-      - name: Make build script executable
-        run: chmod +x scripts/buildprod.sh
-
-      - name: Build production binary
+      - name: Build Notely binary
         run: ./scripts/buildprod.sh
+
+      # Fake GCP setup (lokal simuliert)
+      - name: Setup Fake GCP Credentials
+        run: echo "${{ secrets.GCP_CREDENTIALS }}" > fake-gcp-credentials.json
+
+      - name: Build Docker image
+        run: docker build -t local-ar/notely:latest .
+
+      - name: Push to Fake Artifact Registry
+        run: docker save local-ar/notely:latest -o artifact-registry/notely-ar-repo/notely_latest.tar
