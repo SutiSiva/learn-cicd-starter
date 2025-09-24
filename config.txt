@@ -1,0 +1,3 @@
+account = neuer_user@example.com
+project = notely
+base_url = http://localhost:8080

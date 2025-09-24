@@ -29,3 +29,11 @@ jobs:
 
       - name: Push to Fake Artifact Registry
         run: docker save local-ar/notely:latest -o artifact-registry/notely-ar-repo/notely_latest.tar
+
+      - name: Deploy to Fake Cloud Run
+        run: |
+          echo "Deploying Notely locally..."
+          docker rm -f notely-app || true
+          docker run -d -p 8081:8080 --name notely-app local-ar/notely:latest
+          echo "Notely deployed at http://localhost:8081"
+
